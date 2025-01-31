@@ -1,0 +1,2 @@
+# Retail-Data-Analytics-Extracting-Actionable-Insights
+This project analyzes retail data with columns like 'Invoice', 'StockCode', 'Description', 'Quantity', 'InvoiceDate', 'Price', 'Customer ID', and 'Country'. It explores sales trends, customer behavior, segmentation, product performance, geographic insights, regional sales, and growth potential, using visualizations for data-driven decision-making.
