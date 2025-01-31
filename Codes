@@ -1,0 +1,197 @@
+import pandas as pd
+import numpy as np
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+data = pd.read_excel('/content/drive/MyDrive/online_retail_II.xlsx', engine ='openpyxl')
+print(data.head())
+
+df_2010_11 = pd.read_excel('/content/drive/MyDrive/online_retail_II.xlsx',sheet_name = 'Year 2010-2011', engine ='openpyxl')
+print(df_2010_11.head())
+
+df = pd.concat([data, df_2010_11], axis=0, ignore_index=True)
+df.head()
+
+df.describe()
+
+df['Invoice_Date'] = pd.to_datetime(df['InvoiceDate']).dt.date
+df['Invoice_Time'] = pd.to_datetime(df['InvoiceDate']).dt.time
+df.dropna
+df.head()
+
+# Sales Trends
+df['Sales'] = df['Quantity'] * df['Price']
+df.head()
+
+df['Year'] = pd.to_datetime(df['Invoice_Date']).dt.year
+df['Month'] = pd.to_datetime(df['Invoice_Date']).dt.month
+df['Quarter'] = pd.to_datetime(df['Invoice_Date']).dt.quarter
+df.head()
+
+monthly_sales = df.groupby(['Year', 'Month'])['Sales'].sum().reset_index()
+quarterly_sales = df.groupby(['Year', 'Quarter'])['Sales'].sum().reset_index()
+
+fig = px.line(
+    monthly_sales,
+    x='Month',
+    y='Sales',
+    color='Year',
+    markers=True,
+    title='Interactive Monthly Sales Trends',
+    labels={'Month': 'Month', 'Sales': 'Total Sales', 'Year': 'Year'},
+)
+
+# Show the interactive plot
+fig.show()
+
+plt.figure(figsize=(12, 6))
+sns.lineplot(data=quarterly_sales, x='Quarter', y='Sales', hue='Year', marker='o')
+plt.title('Quarterly Sales Trends')
+plt.show()
+
+
+
+# Customer Behaviour
+df = df[df['Quantity'] > 0]
+customer_data = df.groupby('Customer ID').agg({
+    'Sales': 'sum',
+    'Invoice': 'nunique',
+    'Quantity': 'sum'
+}).reset_index()
+customer_data.rename(columns={'Invoice': 'Transaction_Count'}, inplace=True)
+customer_data.head()
+
+from datetime import datetime
+
+# reference_date =df['InvoiceDate'].max()
+df['Recency'] = ( reference_date - df['InvoiceDate']).dt.days
+recency = df.groupby('Customer ID')['Recency'].min().reset_index()
+
+# Merge with customer data
+customer_data = customer_data.merge(recency, on='Customer ID')
+customer_data.head()
+
+high_value_customers = customer_data[customer_data['Sales'] > customer_data['Sales'].quantile(0.75)]
+high_value_customers = customer_data.sort_values(by='Sales', ascending=False)
+high_value_customers.head()
+
+Most_frequent_customers = customer_data.sort_values(by='Transaction_Count', ascending=False)
+print(Most_frequent_customers)
+
+Seasonal_Shoppers = customer_data[customer_data['Quantity'] > customer_data['Quantity'].quantile(0.50)]
+Seasonal_Shoppers = Seasonal_Shoppers.sort_values(by='Quantity', ascending= True)
+print(Seasonal_Shoppers)
+
+fig = px.scatter(
+    customer_data,
+    x='Transaction_Count',
+    y= 'Sales',
+    size='Quantity',
+    title= 'Customer Segmentation',
+    labels= {'Transaction_Count': 'Transaction Count', 'Sales': 'Total Sales', 'Quantity': 'Quantity'}
+)
+fig.show()
+
+#Product Performance
+product_performance = df.groupby('Description').agg({
+    'Quantity': 'sum',
+    'Sales': 'sum'
+}).reset_index()
+product_performance.head()
+
+Best_selling_products = product_performance.sort_values(by='Sales', ascending = False)
+Top_10_Best_Selling_Products = Best_selling_products.iloc[1:11,:]
+print(Top_10_Best_Selling_Products)
+
+Least_selling_products = product_performance.sort_values(by='Sales', ascending = True)
+Least_selling_products.head()
+
+plt.figure(figsize=(12, 6))
+sns.barplot(data=Top_10_Best_Selling_Products, x='Sales', y='Description', hue ='Description', legend =False,  palette='viridis')
+plt.title('Top 10 Best-Selling Products')
+plt.show()
+
+3geographic Insights
+#COUNTRY WITH HIGHEST SALES VOLUME
+
+Country_data = df.groupby('Country').agg({
+    'Sales': 'sum',
+    'Invoice': 'nunique',
+    'Quantity': 'sum'
+}).reset_index()
+Country_data.rename(columns={'Invoice': 'Transaction_Count'}, inplace=True)
+Highest_Country_Sales = Country_data.sort_values(by='Sales', ascending = False)
+print(Highest_Country_Sales)
+
+plt.figure(figsize=(12, 6))
+sns.barplot(data=Highest_Country_Sales.head(10),
+            x='Sales', y='Country', palette='coolwarm')
+plt.title('Top 10 Countries by Sales Volume')
+plt.show()
+
+import plotly.express as px
+
+
+Geo_data = Highest_Country_Sales[['Country', 'Sales']].sort_values(by='Sales', ascending=False)
+
+Geo_data = Highest_Country_Sales[['Country', 'Sales']].sort_values(by='Sales', ascending=False)
+
+fig = px.choropleth(Geo_data, locations="Country", locationmode='country names',
+                    color="Sales", hover_name="Country",
+                    color_continuous_scale=px.colors.sequential.Plasma,
+                    title="Geographic Sales Distribution")
+fig.show()
+
+country_yearly_sales = df.groupby(['Country', 'Year'])['Sales'].sum().reset_index()
+Most_Yearly_Sale_Country = country_yearly_sales.sort_values(by='Sales', ascending = False)
+print(Most_Yearly_Sale_Country)
+
+# Group by Country and calculate growth potential
+def calculate_cagr(group):
+    start_year = group['Year'].min()
+    end_year = group['Year'].max()
+    start_sales = group.loc[group['Year'] == start_year, 'Sales'].values[0]
+    end_sales = group.loc[group['Year'] == end_year, 'Sales'].values[0]
+    num_years = end_year - start_year + 1
+    # CAGR formula
+    # Handle ZeroDivisionError by returning 0 or np.nan if start_sales is 0 or if num_years is 1.
+    if start_sales == 0 or num_years == 1:
+        return 0  # Or np.nan if you prefer to represent it as missing value
+    else:
+      cagr = ((end_sales / start_sales) ** (1 / (num_years - 1))) - 1
+      return cagr * 100  # Convert to percentage
+
+# Apply CAGR calculation
+cagr_results = df.groupby('Country').apply(calculate_cagr).reset_index()
+cagr_results.columns = ['Country', 'CAGR (%)']
+
+Growth_Potential_Rate = cagr_results.sort_values(by='CAGR (%)', ascending = False)
+print(Growth_Potential_Rate)
+
+plt.figure(figsize=(12, 6))
+sns.barplot(data=Growth_Potential_Rate.head(10),
+            x='Country', y='CAGR (%)', palette='coolwarm')
+plt.title('Top 10 Country with Growth Potential (CAGR)')
+plt.show()
+
+import plotly.express as px
+
+fig = px.scatter_geo(Growth_Potential_Rate, locations="Country", locationmode='country names',
+                     color="CAGR (%)", hover_name="Country", size="CAGR (%)",
+                     projection="natural earth",
+                     title="Geographic Growth Potential Rate (CAGR) by Country",
+                     color_continuous_scale=px.colors.sequential.Plasma)
+
+fig.show()
+
+import plotly.express as px
+
+Growth_Potential_Rate['CAGR (%)'] = Growth_Potential_Rate['CAGR (%)'].apply(lambda x: max(x, 0.1))
+
+fig = px.scatter_geo(Growth_Potential_Rate, locations="Country", locationmode='country names',
+                     color="CAGR (%)", hover_name="Country", size="CAGR (%)",
+                     projection="natural earth",
+                     title="Geographic Growth Potential Rate (CAGR) by Country",
+                     color_continuous_scale=px.colors.sequential.Plasma)
+
+fig.show()
